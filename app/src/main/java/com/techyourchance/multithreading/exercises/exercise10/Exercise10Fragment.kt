@@ -16,8 +16,12 @@ import com.techyourchance.multithreading.common.BaseFragment
 import java.math.BigInteger
 import androidx.fragment.app.Fragment
 import com.techyourchance.multithreading.DefaultConfiguration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
-class Exercise10Fragment : BaseFragment(), ComputeFactorialUseCase.Listener {
+class Exercise10Fragment : BaseFragment() {
 
     private lateinit var edtArgument: EditText
     private lateinit var edtTimeout: EditText
@@ -25,6 +29,8 @@ class Exercise10Fragment : BaseFragment(), ComputeFactorialUseCase.Listener {
     private lateinit var txtResult: TextView
 
     private lateinit var computeFactorialUseCase: ComputeFactorialUseCase
+
+    private var job: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,38 +61,35 @@ class Exercise10Fragment : BaseFragment(), ComputeFactorialUseCase.Listener {
 
             val argument = Integer.valueOf(edtArgument.text.toString())
 
-            computeFactorialUseCase.computeFactorialAndNotify(argument, getTimeout())
+            job = CoroutineScope(Dispatchers.Main).launch {
+                val result = computeFactorialUseCase.computeFactorialAndNotify(argument, getTimeout())
+                onFactorialComputed(result)
+            }
         }
 
         return view
     }
 
-    override fun onStart() {
-        super.onStart()
-        computeFactorialUseCase.registerListener(this)
-    }
-
     override fun onStop() {
         super.onStop()
-        computeFactorialUseCase.unregisterListener(this)
-
+        job?.cancel()
     }
 
     override fun getScreenTitle(): String {
         return "Exercise 10"
     }
 
-    override fun onFactorialComputed(result: BigInteger) {
+    fun onFactorialComputed(result: BigInteger) {
         txtResult.text = result.toString()
         btnStartWork.isEnabled = true
     }
 
-    override fun onFactorialComputationTimedOut() {
+    fun onFactorialComputationTimedOut() {
         txtResult.text = "Computation timed out"
         btnStartWork.isEnabled = true
     }
 
-    override fun onFactorialComputationAborted() {
+    fun onFactorialComputationAborted() {
         txtResult.text = "Computation aborted"
         btnStartWork.isEnabled = true
     }
