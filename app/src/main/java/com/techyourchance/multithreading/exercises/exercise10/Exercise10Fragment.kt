@@ -2,6 +2,7 @@ package com.techyourchance.multithreading.exercises.exercise10
 
 import android.app.Activity
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,10 +17,7 @@ import com.techyourchance.multithreading.common.BaseFragment
 import java.math.BigInteger
 import androidx.fragment.app.Fragment
 import com.techyourchance.multithreading.DefaultConfiguration
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 
 class Exercise10Fragment : BaseFragment() {
 
@@ -62,8 +60,14 @@ class Exercise10Fragment : BaseFragment() {
             val argument = Integer.valueOf(edtArgument.text.toString())
 
             job = CoroutineScope(Dispatchers.Main).launch {
-                val result = computeFactorialUseCase.computeFactorialAndNotify(argument, getTimeout())
-                onFactorialComputed(result)
+                try {
+                    val result =
+                        computeFactorialUseCase.computeFactorialAndNotify(argument, getTimeout())
+                    onFactorialComputed(result)
+                } catch (timeout: TimeoutCancellationException) {
+                    Log.e("fragment", "timed out", timeout)
+                    onFactorialComputationTimedOut()
+                }
             }
         }
 

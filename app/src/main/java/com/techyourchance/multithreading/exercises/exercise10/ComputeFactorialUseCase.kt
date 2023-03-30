@@ -1,17 +1,11 @@
 package com.techyourchance.multithreading.exercises.exercise10
 
-import android.os.Handler
-import android.os.Looper
-
-import com.techyourchance.multithreading.common.BaseObservable
-
+import android.util.Log
 import java.math.BigInteger
 
 import androidx.annotation.WorkerThread
 import kotlinx.coroutines.*
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.lang.Long.max
 
 class ComputeFactorialUseCase {
 
@@ -31,6 +25,7 @@ class ComputeFactorialUseCase {
         fun onFactorialComputationAborted()
     }
 
+    @Throws(TimeoutCancellationException::class)
     suspend fun computeFactorialAndNotify(factorialArgument: Int, timeout: Int): BigInteger {
         withContext(Dispatchers.IO) {
             numberOfThreads = if (factorialArgument < 20)
@@ -62,24 +57,30 @@ class ComputeFactorialUseCase {
 
         startComputation()
 
-        val result = GlobalScope.async { computeFinalResult() }
-
-        return result.await()
+        return computeFinalResultAsync().await()
     }
 
     @WorkerThread
+    @Throws(TimeoutCancellationException::class)
     private suspend fun startComputation() {
         for (i in 0 until numberOfThreads) {
             withContext(Dispatchers.IO) {
                 val rangeStart = threadsComputationRanges[i]!!.start
                 val rangeEnd = threadsComputationRanges[i]!!.end
                 var product = BigInteger("1")
-                for (num in rangeStart..rangeEnd) {
-                    if (isTimedOut()) {
-                        break
+
+                    for (num in rangeStart..rangeEnd) {
+                        val timeMillis = getRemainingTime()
+                        Log.d("startComputation", "time remaining is $timeMillis")
+//                        try {
+                            withTimeout(timeMillis) {
+                                product = product.multiply(BigInteger(num.toString()))
+                            }
+//                        } catch (exception: TimeoutCancellationException) {
+//                            Log.e("startComputation", "failed", exception)
+//                            throw exception
+//                        }
                     }
-                    product = product.multiply(BigInteger(num.toString()))
-                }
                 threadsComputationResults[i] = product
 
                 numOfFinishedThreads++
@@ -87,16 +88,31 @@ class ComputeFactorialUseCase {
         }
     }
 
+    private fun getRemainingTime(): Long {
+//        return max(computationTimeoutTime - System.currentTimeMillis(), 0)
+        return computationTimeoutTime - System.currentTimeMillis()
+    }
+
     @WorkerThread
-    private fun computeFinalResult(): BigInteger {
-        var result = BigInteger("1")
-        for (i in 0 until numberOfThreads) {
-            if (isTimedOut()) {
-                break
-            }
-            result = result.multiply(threadsComputationResults[i])
+    @Throws(TimeoutCancellationException::class)
+    private fun computeFinalResultAsync(): Deferred<BigInteger> {
+        return GlobalScope.async(Dispatchers.IO) {
+            var result = BigInteger("1")
+                for (i in 0 until numberOfThreads) {
+                    val timeMillis = getRemainingTime()
+                    Log.d("computeFinalResultAsync", "time remaining is $timeMillis")
+//                    try {
+                        withTimeout(timeMillis) {
+                            result = result.multiply(threadsComputationResults[i])
+                        }
+//                    } catch (exception: TimeoutCancellationException) {
+//                        Log.e("computeFinalResultAsync", "failed", exception)
+//                        throw exception
+//                    }
+                }
+
+            return@async result
         }
-        return result
     }
 
     private fun isTimedOut(): Boolean {
